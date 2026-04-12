@@ -139,3 +139,4 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
 }
 
+CORS_ALLOW_ALL_ORIGINS = True

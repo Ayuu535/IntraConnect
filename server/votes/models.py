@@ -3,8 +3,7 @@
 # Create your models here.
 from django.db import models
 from django.conf import settings
-from IntraConnect.backend.posts.models import Post
-
+from posts.models import Post
 User = settings.AUTH_USER_MODEL
 
 class Vote(models.Model):
