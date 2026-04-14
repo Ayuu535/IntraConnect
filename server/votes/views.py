@@ -1,40 +1,49 @@
-from django.shortcuts import render
-
-# Create your views here.
-from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework.permissions import AllowAny
 from .models import Vote
-from posts.models import Post
-class VoteView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+from .serializers import VoteSerializer
 
-    def post(self, request, post_id):
-        user = request.user
-        vote_type = request.data.get('vote_type')
+class VoteViewSet(ModelViewSet):
+    queryset = Vote.objects.all()
+    serializer_class = VoteSerializer
+    permission_classes = [AllowAny]
 
-        if vote_type not in [1, -1]:
-            return Response({'error': 'Invalid vote'}, status=400)
+    def create(self, request, *args, **kwargs):
+        post_id = request.data.get("post")
+        vote_type = int(request.data.get("vote_type"))
+        user = request.user if request.user.is_authenticated else None
 
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
-            return Response({'error': 'Post not found'}, status=404)
+        vote = Vote.objects.filter(post_id=post_id, user=user).first()
 
-        vote, created = Vote.objects.get_or_create(user=user, post=post)
+        # 🔽 DOWNVOTE LOGIC
+        if vote_type == -1:
+            if vote:
+                if vote.vote_type == 1:
+                    vote.delete()   # +1 → 0
+                    return Response({"message": "Upvote removed"}, status=200)
+                
+                # already 0 or -1 → do nothing
+                return Response({"message": "No change"}, status=200)
 
-        # 🔥 LOGIC STARTS HERE
+            # no vote → do nothing
+            return Response({"message": "No change"}, status=200)
 
-        if not created:
-            if vote.vote_type == vote_type:
-                vote.delete()
-                return Response({'message': 'Vote removed'})
-            else:
-                vote.vote_type = vote_type
+        # 🔼 UPVOTE LOGIC
+        if vote_type == 1:
+            if vote:
+                if vote.vote_type == 1:
+                    return Response({"message": "Already upvoted"}, status=200)
+                
+                # if somehow -1 exists → convert to +1
+                vote.vote_type = 1
                 vote.save()
-                return Response({'message': 'Vote updated'})
+                return Response({"message": "Vote updated"}, status=200)
 
-        vote.vote_type = vote_type
-        vote.save()
-
-        return Response({'message': 'Vote added'})
+            # first time upvote
+            Vote.objects.create(
+                post_id=post_id,
+                vote_type=1,
+                user=user
+            )
+            return Response({"message": "Upvoted"}, status=201)
